@@ -1,33 +1,40 @@
 import streamlit as st
 import random
 import pandas as pd
+from supabase import create_client, Client
 
-# --- 1. GLOBAL LAYOUT CONFIGURATION ---
+# --- 1. INITIALIZE DATABASE SECRETS ENVIRONMENT ---
+# Pulling credentials securely from deployment settings
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
+
+# Single-point initialization function
+@st.cache_resource
+def get_supabase_client() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        return None
+    return create_client(SUPABASE_URL, SUPABASE_KEY)
+
+supabase = get_supabase_client()
+
+# --- 2. GLOBAL LAYOUT CONFIGURATION ---
 st.set_page_config(
-    page_title="soul - Chat & AI Dating Assistant",
+    page_title="soul - Cloud Connected Chat & Ledger",
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- 2. SESSION STATE MANAGEMENT (App Memory Layer) ---
+# --- 3. SESSION STATE MANAGEMENT (Localized Chat Cache Only) ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-        {"sender": "System", "type": "text", "content": "Welcome to soul! Initialize your identity profile on the sidebar, consult the AI Dating Assistant, and share your details inside the feed."}
+        {"sender": "System", "type": "text", "content": "Welcome to soul! Your session is connected to a secure cloud-backed database ledger."}
     ]
 
 if "user_profile" not in st.session_state:
     st.session_state.user_profile = None
 
-# In-memory central databank ledger tracking platform registries
-if "user_registry" not in st.session_state:
-    st.session_state.user_registry = [
-        {"name": "Alice Nderitu", "email": "alice@domain.ke", "phone": "+254 711 222333", "paid": True, "location": "Nairobi, Kenya"},
-        {"name": "Ben Schmidt", "email": "ben.s@berlin.de", "phone": "+49 30 889977", "paid": False, "location": "[Redacted - Upgrade to Premium]"},
-        {"name": "Charlie Kamau", "email": "charlie@web.com", "phone": "Not provided", "paid": True, "location": "Mombasa, Kenya"}
-    ]
-
-# --- 3. BOT DATING LINE ENGINE ---
+# --- 4. HARDCODED BOT DATING LINE ENGINE ---
 DATING_LINES_DATABASE = {
     "Witty & Playful": [
         "Are you a software update? Because whenever I look at you, my whole system pauses.",
@@ -47,7 +54,6 @@ DATING_LINES_DATABASE = {
 }
 
 def generate_dating_line(style, profile):
-    """Selects and personalizes an icebreaker line using client data context."""
     base_lines = DATING_LINES_DATABASE.get(style, DATING_LINES_DATABASE["Witty & Playful"])
     selected_line = random.choice(base_lines)
     if profile and profile.get("name"):
@@ -56,57 +62,81 @@ def generate_dating_line(style, profile):
             selected_line = f"Hey {first_name}! {selected_line}"
     return selected_line
 
-# --- 4. DATA COMPILATION & EXECUTIVE REPORT UTILITY ---
-def compile_registry_report():
-    """Compiles a clean markdown data metric table from current logs."""
-    total_users = len(st.session_state.user_registry)
-    premium_users = len([u for u in st.session_state.user_registry if u['paid']])
+# --- 5. DATA INGESTION & REPORT GENERATION UTILITIES ---
+def fetch_users_from_db():
+    """Queries live rows from the permanent Supabase database schema."""
+    if not supabase:
+        return []
+    try:
+        response = supabase.table("user_registry").select("*").execute()
+        return response.data if response.data else []
+    except Exception as e:
+        st.error(f"Database Read Error: {e}")
+        return []
+
+def compile_registry_report(user_list):
+    """Compiles a clean markdown analytical table from live database records."""
+    total_users = len(user_list)
+    premium_users = len([u for u in user_list if u.get('paid')])
     conversion_rate = (premium_users / total_users * 100) if total_users > 0 else 0.0
     
     report_lines = [
-        "# SOUL APPLICATION - SYSTEM REGISTRY REPORT",
+        "# SOUL APPLICATION - LIVE SYSTEM REGISTRY REPORT",
         "## Core User Footprint & Revenue Telemetry Metrics\n",
-        f"- **Total Registered Client Accounts**: {total_users}",
+        f"- **Total Registered Cloud Accounts**: {total_users}",
         f"- **Premium Conversion Ratio**: {conversion_rate:.1f}%\n",
         "---|---|---|---|---",
         "Full Name | Email Address | Phone Number | Premium Paid | Location Coordinates",
         "---|---|---|---|---"
     ]
-    for u in st.session_state.user_registry:
-        report_lines.append(f"{u['name']} | {u['email']} | {u['phone']} | {'✅ Yes' if u['paid'] else '❌ No'} | {u['location']}")
+    for u in user_list:
+        report_lines.append(f"{u.get('name')} | {u.get('email')} | {u.get('phone')} | {'✅ Yes' if u.get('paid') else '❌ No'} | {u.get('location')}")
     
     return "\n".join(report_lines)
 
-# --- 5. APPLICATION VIEWPORTS (Sidebar Profile Form + Core App Workspaces) ---
+# Fetch current records from database upfront
+live_user_data = fetch_users_from_db()
 
-# SIDEBAR VIEWPORT: Manage active registration configuration
+# --- 6. SIDEBAR VIEWPORT: PROFILE & AUTHENTICATION REGISTRY ---
 with st.sidebar:
     st.title("soul 💬❤️")
-    st.caption("Identity Registration Node & Billing Clearance Panel")
+    st.caption("Live Cloud Registration Node & Payment Portal")
     
+    if not supabase:
+        st.warning("⚠️ Database connection parameters missing. Provide credentials in Secrets settings.")
+
     with st.form("sidebar_profile_form"):
         name = st.text_input("Full Name", placeholder="John Doe")
         email = st.text_input("Email Address", placeholder="john@example.com")
         phone = st.text_input("Phone Number", placeholder="+254 700 000000")
-        is_paid = st.checkbox("Pay for Service Premium Tier (Unlocks Location Data Logs)", value=False)
+        is_paid = st.checkbox("Pay for Service Premium Tier (Unlocks Location Logs)", value=False)
         
-        submit_profile = st.form_submit_button("Register & Authenticate Node")
+        submit_profile = st.form_submit_button("Register & Sync to Cloud")
         
         if submit_profile:
             if name and email:
-                # Simulated location resolution fallback dependent on payment tier authorization
                 resolved_loc = "Berlin, Germany" if is_paid else "[Redacted - Upgrade to Premium]"
                 
-                new_user = {
+                payload = {
                     "name": name,
                     "email": email,
                     "phone": phone if phone else "Not provided",
                     "paid": is_paid,
                     "location": resolved_loc
                 }
-                st.session_state.user_profile = new_user
-                st.session_state.user_registry.append(new_user)
-                st.success("Registration added to app lifecycle ledger!")
+                
+                if supabase:
+                    try:
+                        # Direct database mutation injection loop
+                        supabase.table("user_registry").insert(payload).execute()
+                        st.session_state.user_profile = payload
+                        st.success("Successfully synchronized to cloud database!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed to push data: {e}")
+                else:
+                    st.session_state.user_profile = payload
+                    st.info("Cached locally (Offline Mode).")
             else:
                 st.error("Name and Email are mandatory fields.")
 
@@ -124,14 +154,14 @@ with st.sidebar:
             </div>
         """, unsafe_with_html=True)
         
-        if st.button("Drop Card Into Chat Feed", use_container_width=True, type="secondary"):
+        if st.button("Drop Card Into Chat Feed", use_container_width=True):
             st.session_state.chat_history.append({"sender": "You", "type": "contact_card", "content": prof})
             st.rerun()
 
-# MAIN WORKSPACE AREA: Dynamic Dashboard Split into Contextual Tabs
+# --- 7. MAIN INTERFACE VIEWPORTS (Workspace Layout) ---
 tab_chat, tab_admin = st.tabs(["💬 Core Chatroom Feed", "📊 Executive Admin Records & Reporting"])
 
-# ==================== TAB 1: CORE CHATROOM INTERFACE ====================
+# ==================== TAB 1: LIVE CHAT SPACE ====================
 with tab_chat:
     col_chat_feed, col_bot_panel = st.columns([1.8, 1.2], gap="medium")
     
@@ -167,9 +197,7 @@ with tab_chat:
 
     with col_bot_panel:
         st.subheader("🤖 AI Line Recommendation")
-        st.caption("Let the bot analyze metrics and suggest conversation lines.")
-        
-        style_choice = st.selectbox("Line Persona Persona:", ["Witty & Playful", "Confident & Direct", "Sweet & Charming"])
+        style_choice = st.selectbox("Line Persona Mood:", ["Witty & Playful", "Confident & Direct", "Sweet & Charming"])
         
         if "current_suggestion" not in st.session_state:
             st.session_state.current_suggestion = ""
@@ -178,14 +206,5 @@ with tab_chat:
             st.session_state.current_suggestion = generate_dating_line(style_choice, st.session_state.user_profile)
             
         if st.session_state.current_suggestion:
-            st.info(f"**Suggested Line:**\n\n\"{st.session_state.current_suggestion}\"")
+            st.info(f"\"{st.session_state.current_suggestion}\"")
             if st.button("Send Directly to Chat 🚀", use_container_width=True):
-                st.session_state.chat_history.append({"sender": "You", "type": "text", "content": st.session_state.current_suggestion})
-                st.session_state.current_suggestion = ""
-                st.rerun()
-
-# ==================== TAB 2: ADMINISTRATIVE METRICS & REPORT OUTFLOW ====================
-with tab_admin:
-    st.subheader("📊 System User Registry")
-    st.caption("Secure master database reviewing registered user nodes, telemetry datasets, and billing states.")
-    
