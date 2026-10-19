@@ -9,8 +9,9 @@ SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 
-# FIXED PLATFORM MERCHANT RECEIVING NODE
+# FIXED PLATFORM CONFIGURATIONS
 MERCHANT_MPESA_NUMBER = "0711317556"
+PREMIUM_FEE_KES = 20  # Standard small fee charge parameter for service activation
 
 @st.cache_resource
 def get_supabase_client() -> Client:
@@ -29,7 +30,7 @@ ai_client = get_openai_client()
 
 # --- 2. GLOBAL LAYOUT CONFIGURATION ---
 st.set_page_config(
-    page_title="soul - Premium M-Pesa Registration Gate",
+    page_title="soul - Premium M-Pesa Revenue Gate",
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -44,9 +45,8 @@ if "chat_history" not in st.session_state:
 if "user_profile" not in st.session_state:
     st.session_state.user_profile = None
 
-# Tracks stage steps for the two-tier registration intercept flow
 if "registration_stage" not in st.session_state:
-    st.session_state.registration_stage = "form_entry"  # options: form_entry, payment_prompt
+    st.session_state.registration_stage = "form_entry"
 
 if "temp_registration_data" not in st.session_state:
     st.session_state.temp_registration_data = None
@@ -74,7 +74,7 @@ def generate_dating_line_ai(style, profile):
     except Exception as e:
         return f"AI line generation unavailable: {e}"
 
-# --- 5. REPORT GENERATION UTILITIES ---
+# --- 5. REPORT GENERATION & REVENUE UTILITIES ---
 def fetch_users_from_db():
     if not supabase: return []
     try:
@@ -84,6 +84,26 @@ def fetch_users_from_db():
         st.error(f"Database Read Error: {e}")
         return []
 
+def compile_registry_report(user_list, total_rev):
+    total_users = len(user_list)
+    premium_users = len([u for u in user_list if u.get('paid')])
+    conversion_rate = (premium_users / total_users * 100) if total_users > 0 else 0.0
+    
+    report_lines = [
+        "# SOUL APPLICATION - SYSTEM REGISTRY REPORT",
+        f"- **Platform Merchant Receiving Number**: {MERCHANT_MPESA_NUMBER}",
+        f"- **Total Platform Earnings**: KES {total_rev:,}",
+        f"- **Total Registered Cloud Accounts**: {total_users}",
+        f"- **Premium Conversion Ratio**: {conversion_rate:.1f}%\n",
+        "---|---|---|---|---|---",
+        "Full Name | Email Address | Contact Digits | Premium Status | Client M-Pesa Number | Location Coordinates",
+        "---|---|---|---|---|---"
+    ]
+    for u in user_list:
+        client_mpesa = u.get('mpesa_phone', 'None')
+        report_lines.append(f"{u.get('name')} | {u.get('email')} | {u.get('phone')} | {'✅ Paid' if u.get('paid') else '❌ Free'} | {client_mpesa} | {u.get('location')}")
+    return "\n".join(report_lines)
+
 live_user_data = fetch_users_from_db()
 
 # --- 6. SIDEBAR VIEWPORT: ENFORCED TWO-STEP PAY-FIRST FLOW ---
@@ -91,7 +111,6 @@ with st.sidebar:
     st.title("soul 💬❤️")
     st.caption("Live Cloud Registration Node & M-Pesa Gateway")
     
-    # STAGE 1: Standard parameter collection node
     if st.session_state.registration_stage == "form_entry":
         st.write("### Step 1: Account Setup")
         with st.form("primary_profile_form"):
@@ -103,7 +122,6 @@ with st.sidebar:
             
             if proceed_button:
                 if name and email:
-                    # Freeze details in memory buffer and transition stage state
                     st.session_state.temp_registration_data = {
                         "name": name,
                         "email": email,
@@ -114,15 +132,14 @@ with st.sidebar:
                 else:
                     st.error("Name and Email are mandatory fields.")
 
-    # STAGE 2: Immediate payment intercept roadblock prompt before database write action
     elif st.session_state.registration_stage == "payment_prompt":
         st.write("### 💳 Step 2: Payment Prompt Verification")
-        st.warning("Action Required: Send money to complete platform onboarding.")
+        st.warning(f"Action Required: Send KES {PREMIUM_FEE_KES} to complete onboarding.")
         
         st.markdown(f"""
         <div style="background-color: #fffaf0; border-left: 4px solid #dd6b20; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
             <p style="margin: 0; font-size: 13px; color: #7b341e;">
-                Please send premium activation funds to our official merchant wallet number:<br>
+                Please send activation funds to our official merchant wallet number:<br>
                 <b style="font-size: 16px; color: #dd6b20;">{MERCHANT_MPESA_NUMBER}</b>
             </p>
         </div>
@@ -139,7 +156,6 @@ with st.sidebar:
         with col_confirm:
             if st.button("Confirm Payment & Register ✅", type="primary"):
                 if client_mpesa.strip():
-                    # Complete database object creation with verified metrics mapping
                     temp_data = st.session_state.temp_registration_data
                     payload = {
                         "name": temp_data["name"],
@@ -154,7 +170,7 @@ with st.sidebar:
                         try:
                             supabase.table("user_registry").insert(payload).execute()
                             st.session_state.user_profile = payload
-                            st.session_state.registration_stage = "form_entry" # reset loop state
+                            st.session_state.registration_stage = "form_entry"
                             st.success("Payment verified! Premium registration confirmed.")
                             st.experimental_rerun()
                         except Exception as e:
@@ -167,7 +183,6 @@ with st.sidebar:
                 else:
                     st.error("You must input your payment phone number to verify transmission.")
 
-    # Display configured contact cards post successful verification clearance
     if st.session_state.user_profile:
         st.write("---")
         st.markdown("### 📇 Active Verified Profile")
@@ -201,13 +216,3 @@ with tab_chat:
                     st.markdown(f"""
                         <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
                             <div style="background-color: #ffffff; border: 2px solid #15803d; border-radius: 12px; padding: 12px; max-width: 280px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
-                                <h4 style="margin: 0; font-size: 13px; color: #111827;">📇 {card['name']}</h4>
-                                <div style="margin-top: 6px; font-size: 11px; color: #4b5563; line-height: 1.4;">
-                                    <b>Email:</b> {card['email']}<br>
-                                    <b>Phone:</b> {card['phone']}<br>
-                                    <b>Verification Ref:</b> {card['mpesa_phone']}
-                                </div>
-                            </div>
-                        </div>
-                    """, unsafe_with_html=True)
-                elif message["sender"] == "You":
