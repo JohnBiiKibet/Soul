@@ -192,25 +192,32 @@ if not st.session_state.user_profile:
         st.markdown(f"""
         <div style="background-color: #f1f5f9; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; max-width: 800px; margin: 40px auto;">
             <h1 style="color: #0f172a; margin-bottom: 8px; font-size: 28px;">Welcome to soul</h1>
-            <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">An exclusive global matching stream, real-time chatroom, and generative AI conversation assistant.</p>
-            <hr style="border-color: #e2e8f0; margin-bottom: 24px;">
-            <h3 style="color: #4f46e5; margin-bottom: 4px;">Account Setup Required</h3>
-            <p style="color: #475569; font-size: 14px; margin-bottom: 0;">Please fill out your **Full Name** and **Email Address** inside the left sidebar form block to get started.</p>
+            <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">An exclusive chatroom feed and Generative AI Dating gateway.</p>
+            <p style="font-weight: 600; color: #3b82f6;">Please complete your Step 1 profile setup in the sidebar to proceed.</p>
         </div>
         """, unsafe_allow_html=True)
-
+        
     elif st.session_state.registration_stage == "payment_prompt":
+        # Form Entry Completed -> Prompting payment step details on main stage
         st.markdown(f"""
-        <div style="background-color: #ffffff; padding: 40px; border-radius: 16px; border: 2px solid #ef4444; max-width: 750px; margin: 20px auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <span style="font-size: 48px;">🔒</span>
-                <h1 style="color: #1e293b; margin: 12px 0 4px 0; font-size: 26px;">Account Verification Required</h1>
-                <p style="color: #ef4444; font-weight: 600; font-size: 15px; margin: 0;">PREMIUM STATUS: UNPAID</p>
-            </div>
+        <div style="background-color: #fffdf5; padding: 30px; border-radius: 12px; border: 1px solid #fef08a; max-width: 700px; margin: 20px auto;">
+            <h2 style="color: #854d0e; margin-top: 0;">Complete Premium Verification</h2>
+            <p>To view global online members and activate your chat routing module, an activation fee is required:</p>
+            <ul>
+                <li><strong>Amount:</strong> KES {PREMIUM_FEE_KES}</li>
+                <li><strong>Merchant Destination Number:</strong> {MERCHANT_MPESA_NUMBER}</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        with st.container():
+            st.write("### Confirm M-Pesa Billing Information")
+            mpesa_number = st.text_input("Enter Your M-Pesa Number (Used for verification)", placeholder="07XXXXXXXX")
+            mpesa_code = st.text_input("Enter M-Pesa Transaction Code", placeholder="SJKXXXXXXX")
             
-            <div style="background-color: #fef2f2; border: 1px solid #fee2e2; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 24px;">
-                <p style="margin: 0; color: #991b1b; font-size: 14px;">Verification Activation Fee Amount Due:</p>
-                <h2 style="margin: 6px 0; color: #dc2626; font-size: 36px; font-weight: 800;">KES {PREMIUM_FEE_KES}.00</h2>
-                <p style="margin: 0; color: #7f1d1d; font-size: 12px; font-weight: 500;">One-time charge to unlock account privileges and see live members online.</p>
-            </div>
-            
+            if st.button("Complete Premium Onboarding Verification 🚀", type="primary"):
+                if len(mpesa_number) >= 9 and len(mpesa_code) >= 6:
+                    # Capture registration data construct
+                    profile_payload = {
+                        "name": st.session_state.temp_registration_data["name"],
+                        "email": st.session_state.temp_registration_data["email"],
