@@ -189,7 +189,7 @@ with st.sidebar:
             st.rerun()
 
 # --- 7. MAIN INTERFACE VIEWPORTS ---
-st.markdown("<br>", unsafe_with_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 tab_chat, tab_admin = st.tabs(["💬 Core Chatroom Feed", "📊 Executive Admin Records & Reporting"])
 
 # ==================== TAB 1: LIVE CHAT SPACE ====================
@@ -201,7 +201,6 @@ with tab_chat:
             for message in st.session_state.chat_history:
                 if message["sender"] == "You" and message["type"] == "contact_card":
                     card = message["content"]
-                    # Render shared contact details using standard widgets instead of raw HTML
                     with st.chat_message("user"):
                         st.markdown(f"📇 **Shared Contact Card: {card['name']}**")
                         st.text(f"Email: {card['email']}")
@@ -221,3 +220,5 @@ with tab_chat:
         style_choice = st.selectbox("Line Persona Mood:", ["Witty & Playful", "Confident & Direct", "Sweet & Romantic"])
         if st.button("Generate AI Icebreaker ✨", use_container_width=True, type="primary"):
             st.session_state.current_suggestion = generate_dating_line_ai(style_choice, st.session_state.user_profile)
+        if st.session_state.get("current_suggestion"):
+            st.info(f"\"{st.session_state.current_suggestion}\"")
