@@ -217,3 +217,4 @@ with tab_chat:
                     st.markdown(f"""
                         <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
                             <div style="background-color: #ffffff; border: 2px solid #15803d; border-radius: 12px; padding: 12px; max-width: 280px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                                <h4 style="margin: 0; font-size: 13px; color: #111827;">📇 {card['name']}</h4>
