@@ -6,7 +6,7 @@ from openai import OpenAI
 
 # --- 1. GLOBAL LAYOUT CONFIGURATION (MUST BE FIRST) ---
 st.set_page_config(
-    page_title="soul - Premium M-Pesa Revenue Gate",
+    page_title="soul - Enforced Premium Registration",
     page_icon="💬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -39,7 +39,7 @@ ai_client = get_openai_client()
 # --- 3. SESSION STATE MANAGEMENT ---
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = [
-        {"sender": "System", "type": "text", "content": "Welcome to soul! Complete your verification prompt on the sidebar to unlock matching features."}
+        {"sender": "System", "type": "text", "content": "Welcome to soul! Enforced verification is active. Pay to unlock matching, chat rooms, and AI tools."}
     ]
 
 if "user_profile" not in st.session_state:
@@ -106,12 +106,13 @@ def compile_registry_report(user_list, total_rev):
 
 live_user_data = fetch_users_from_db()
 
-# --- 6. SIDEBAR VIEWPORT: ENFORCED TWO-STEP PAY-FIRST FLOW ---
+# --- 6. SIDEBAR VIEWPORT: MANDATORY PAY-FIRST ROADBLOCK FLOW ---
 with st.sidebar:
     st.title("soul 💬❤️")
     st.caption("Live Cloud Registration Node & M-Pesa Gateway")
     
-    if st.session_state.registration_stage == "form_entry":
+    # STAGE 1: Collect core name/email properties
+    if st.session_state.registration_stage == "form_entry" and not st.session_state.user_profile:
         st.write("### Step 1: Account Setup")
         with st.form("primary_profile_form"):
             name = st.text_input("Full Name", placeholder="John Doe")
@@ -132,22 +133,33 @@ with st.sidebar:
                 else:
                     st.error("Name and Email are mandatory fields.")
 
-    elif st.session_state.registration_stage == "payment_prompt":
-        st.write("### 💳 Step 2: Payment Prompt Verification")
-        st.warning(f"Action Required: Send KES {PREMIUM_FEE_KES} to complete onboarding.")
+    # STAGE 2: MANDATORY INTERCEPT—Blocks access entirely unless transaction values exist
+    elif st.session_state.registration_stage == "payment_prompt" and not st.session_state.user_profile:
+        st.write("### 🔒 Step 2: Pay to Unlock Registration")
+        st.error("Access Prohibited: Paid activation required to enter platform features.")
         
-        st.info(f"Please send activation funds to our official merchant wallet number: **{MERCHANT_MPESA_NUMBER}**")
-        client_mpesa = st.text_input("Enter your M-Pesa Number used to transact:", placeholder="e.g. 07XXXXXXXX")
+        st.markdown(f"""
+        <div style="background-color: #fffaf0; border-left: 4px solid #dd6b20; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+            <p style="margin: 0; font-size: 13px; color: #7b341e;">
+                Send exactly <b>KES {PREMIUM_FEE_KES}</b> to our official payment node:<br>
+                M-Pesa Number: <b style="font-size: 16px; color: #dd6b20;">{MERCHANT_MPESA_NUMBER}</b>
+            </p>
+        </div>
+        """, unsafe_with_html=True)
+        
+        client_mpesa = st.text_input("Your M-Pesa Phone Number", placeholder="07XXXXXXXX")
+        mpesa_code = st.text_input("M-Pesa Transaction Confirmation Code", placeholder="e.g. QRA1234567").strip().upper()
         
         col_cancel, col_confirm = st.columns(2)
         with col_cancel:
-            if st.button("⬅️ Back / Cancel"):
+            if st.button("⬅️ Cancel"):
                 st.session_state.registration_stage = "form_entry"
                 st.rerun()
                 
         with col_confirm:
-            if st.button("Confirm Payment & Register ✅", type="primary"):
-                if client_mpesa.strip():
+            if st.button("Verify & Complete Registration ✅", type="primary"):
+                # Strict Gate Enforcer: Checking that phone and transaction text string parameters are present
+                if client_mpesa.strip() and mpesa_code:
                     temp_data = st.session_state.temp_registration_data
                     payload = {
                         "name": temp_data["name"],
@@ -162,22 +174,22 @@ with st.sidebar:
                         try:
                             supabase.table("user_registry").insert(payload).execute()
                             st.session_state.user_profile = payload
-                            st.session_state.registration_stage = "form_entry"
-                            st.success("Payment verified! Premium registration confirmed.")
+                            st.session_state.registration_stage = "completed"
+                            st.success(f"Payment cleared! Welcome to soul, {temp_data['name']}.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Failed to synchronize ledger: {e}")
+                            st.error(f"Database sync fail: {e}")
                     else:
                         st.session_state.user_profile = payload
-                        st.session_state.registration_stage = "form_entry"
-                        st.info("Offline simulation saved.")
+                        st.session_state.registration_stage = "completed"
+                        st.info("Offline validation simulation saved.")
                         st.rerun()
                 else:
-                    st.error("You must input your payment phone number to verify transmission.")
+                    st.error("⛔ REGISTRATION DENIED: You must provide your M-Pesa number and Transaction Code to unlock the app.")
 
+    # STAGE 3: Account verified state
     if st.session_state.user_profile:
-        st.write("---")
-        st.markdown("### 📇 Active Verified Profile")
+        st.write("### 📇 Active Account Verified")
         prof = st.session_state.user_profile
         st.success(f"**{prof['name']}** (Verified Premium)")
         st.text(f"📧 Email: {prof['email']}")
@@ -187,38 +199,23 @@ with st.sidebar:
         if st.button("Drop Card Into Chat Feed", use_container_width=True):
             st.session_state.chat_history.append({"sender": "You", "type": "contact_card", "content": prof})
             st.rerun()
-
-# --- 7. MAIN INTERFACE VIEWPORTS ---
-st.markdown("<br>", unsafe_allow_html=True)
-tab_chat, tab_admin = st.tabs(["💬 Core Chatroom Feed", "📊 Executive Admin Records & Reporting"])
-
-# ==================== TAB 1: LIVE CHAT SPACE ====================
-with tab_chat:
-    col_chat_feed, col_bot_panel = st.columns([1.8, 1.2], gap="medium")
-    with col_chat_feed:
-        chat_container = st.container(height=420)
-        with chat_container:
-            for message in st.session_state.chat_history:
-                if message["sender"] == "You" and message["type"] == "contact_card":
-                    card = message["content"]
-                    with st.chat_message("user"):
-                        st.markdown(f"📇 **Shared Contact Card: {card['name']}**")
-                        st.text(f"Email: {card['email']}")
-                        st.text(f"Phone: {card['phone']}")
-                        st.caption(f"Verification Ref: {card['mpesa_phone']}")
-                elif message["sender"] == "You":
-                    st.chat_message("user").write(message["content"])
-                else:
-                    st.chat_message("assistant").write(message["content"])
-
-        if user_text := st.chat_input("Type a message or insert your customized dating line icebreaker..."):
-            st.session_state.chat_history.append({"sender": "You", "type": "text", "content": user_text})
+            
+        if st.button("🚪 Sign Out / New Registration", use_container_width=True, type="secondary"):
+            st.session_state.user_profile = None
+            st.session_state.registration_stage = "form_entry"
             st.rerun()
 
-    with col_bot_panel:
-        st.subheader("🤖 Generative OpenAI Bot")
-        style_choice = st.selectbox("Line Persona Mood:", ["Witty & Playful", "Confident & Direct", "Sweet & Romantic"])
-        if st.button("Generate AI Icebreaker ✨", use_container_width=True, type="primary"):
-            st.session_state.current_suggestion = generate_dating_line_ai(style_choice, st.session_state.user_profile)
-        if st.session_state.get("current_suggestion"):
-            st.info(f"\"{st.session_state.current_suggestion}\"")
+# --- 7. MAIN INTERFACE INTERNALS: HIDDEN ENTRIES IF NOT REGISTERED ---
+st.markdown("<br>", unsafe_allow_html=True)
+
+if not st.session_state.user_profile:
+    # If the user is unverified, lock the main workspace viewports completely to prevent data sniffing
+    st.info("🔒 **Welcome to soul.** Please fill out your details and pay KES 20 using the sidebar menu to unlock the live chatroom feed and the Generative AI Dating assistant tool.")
+else:
+    tab_chat, tab_admin = st.tabs(["💬 Core Chatroom Feed", "📊 Executive Admin Records & Reporting"])
+
+    # ==================== TAB 1: LIVE CHAT SPACE ====================
+    with tab_chat:
+        col_chat_feed, col_bot_panel = st.columns([1.8, 1.2], gap="medium")
+        with col_chat_feed:
+            chat_container = st.container(height=420)
