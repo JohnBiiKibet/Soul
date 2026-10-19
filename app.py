@@ -4,7 +4,15 @@ import pandas as pd
 from supabase import create_client, Client
 from openai import OpenAI
 
-# --- 1. INITIALIZE DATABASE & AI SECRETS ENVIRONMENT ---
+# --- 1. GLOBAL LAYOUT CONFIGURATION (MUST BE ABSOLUTE FIRST STREAMLIT CALL) ---
+st.set_page_config(
+    page_title="soul - Premium M-Pesa Revenue Gate",
+    page_icon="💬",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# --- 2. INITIALIZE DATABASE & AI SECRETS ENVIRONMENT ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
@@ -27,14 +35,6 @@ def get_openai_client():
 
 supabase = get_supabase_client()
 ai_client = get_openai_client()
-
-# --- 2. GLOBAL LAYOUT CONFIGURATION ---
-st.set_page_config(
-    page_title="soul - Premium M-Pesa Revenue Gate",
-    page_icon="💬",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # --- 3. SESSION STATE MANAGEMENT ---
 if "chat_history" not in st.session_state:
@@ -187,25 +187,33 @@ with st.sidebar:
         st.write("---")
         st.markdown("### 📇 Active Verified Profile")
         prof = st.session_state.user_profile
-        # Correctly closing the multi-line markdown block and parenthesis
         st.markdown(f"""
-        <div style="background-color: #f8fafc; border: 2px solid #15803d; border-radius: 12px; padding: 14px; margin-bottom: 8px;">
-            <b style="color: #1e293b;">{prof['name']}</b>
-            <p style="margin: 4px 0 0 0; font-size: 13px; color: #64748b;">
-                💎 Premium Member<br>
-                📧 {prof['email']}<br>
-                📍 {prof['location']}
-            </p>
-        </div>
+            <div style="background-color: #f8fafc; border: 2px solid #15803d; border-radius: 12px; padding: 14px; margin-bottom: 8px;">
+                <b style="color: #1e293b;">{prof['name']}</b> (<span style="color: #15803d; font-weight: bold;">Verified Premium</span>)<br>
+                <hr style="margin: 6px 0; border-color: #e2e8f0;">
+                <span style="font-size: 12px; color: #64748b;">📧 {prof['email']}</span><br>
+                <span style="font-size: 12px; color: #64748b;">📞 {prof['phone']}</span><br>
+                <span style="font-size: 12px; color: #15803d;">📱 Paid via: {prof['mpesa_phone']}</span>
+            </div>
         """, unsafe_with_html=True)
+        
+        if st.button("Drop Card Into Chat Feed", use_container_width=True):
+            st.session_state.chat_history.append({"sender": "You", "type": "contact_card", "content": prof})
+            st.rerun()
 
-# --- 7. MAIN VIEWPORT APP CONTENT INTERFACE ---
-st.title("Soul Icebreaker Hub 💬")
-st.write("Use AI to generate high-conversion openers for your profile.")
+# --- 7. MAIN INTERFACE VIEWPORTS ---
+st.markdown("<br>", unsafe_with_html=True)
+tab_chat, tab_admin = st.tabs(["💬 Core Chatroom Feed", "📊 Executive Admin Records & Reporting"])
 
-selected_style = st.selectbox("Select Icebreaker Style:", ["Witty & Playful", "Direct & Bold", "Geeky & Technical", "Charming"])
-
-if st.button("Generate Icebreaker Opener ✨", type="primary"):
-    with st.spinner("Consulting AI engine..."):
-        line = generate_dating_line_ai(selected_style, st.session_state.user_profile)
-        st.info(f"**Generated Opener:**\n\n {line}")
+# ==================== TAB 1: LIVE CHAT SPACE ====================
+with tab_chat:
+    col_chat_feed, col_bot_panel = st.columns([1.8, 1.2], gap="medium")
+    with col_chat_feed:
+        chat_container = st.container(height=420)
+        with chat_container:
+            for message in st.session_state.chat_history:
+                if message["sender"] == "You" and message["type"] == "contact_card":
+                    card = message["content"]
+                    st.markdown(f"""
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
+                            <div style="background-color: #ffffff; border: 2px solid #15803d; border-radius: 12px; padding: 12px; max-width: 280px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
