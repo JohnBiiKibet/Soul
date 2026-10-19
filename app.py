@@ -4,7 +4,7 @@ import pandas as pd
 from supabase import create_client, Client
 from openai import OpenAI
 
-# --- 1. GLOBAL LAYOUT CONFIGURATION (MUST BE ABSOLUTE FIRST STREAMLIT CALL) ---
+# --- 1. GLOBAL LAYOUT CONFIGURATION (MUST BE FIRST) ---
 st.set_page_config(
     page_title="soul - Premium M-Pesa Revenue Gate",
     page_icon="💬",
@@ -136,15 +136,7 @@ with st.sidebar:
         st.write("### 💳 Step 2: Payment Prompt Verification")
         st.warning(f"Action Required: Send KES {PREMIUM_FEE_KES} to complete onboarding.")
         
-        st.markdown(f"""
-        <div style="background-color: #fffaf0; border-left: 4px solid #dd6b20; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
-            <p style="margin: 0; font-size: 13px; color: #7b341e;">
-                Please send activation funds to our official merchant wallet number:<br>
-                <b style="font-size: 16px; color: #dd6b20;">{MERCHANT_MPESA_NUMBER}</b>
-            </p>
-        </div>
-        """, unsafe_with_html=True)
-        
+        st.info(f"Please send activation funds to our official merchant wallet number: **{MERCHANT_MPESA_NUMBER}**")
         client_mpesa = st.text_input("Enter your M-Pesa Number used to transact:", placeholder="e.g. 07XXXXXXXX")
         
         col_cancel, col_confirm = st.columns(2)
@@ -187,15 +179,10 @@ with st.sidebar:
         st.write("---")
         st.markdown("### 📇 Active Verified Profile")
         prof = st.session_state.user_profile
-        st.markdown(f"""
-            <div style="background-color: #f8fafc; border: 2px solid #15803d; border-radius: 12px; padding: 14px; margin-bottom: 8px;">
-                <b style="color: #1e293b;">{prof['name']}</b> (<span style="color: #15803d; font-weight: bold;">Verified Premium</span>)<br>
-                <hr style="margin: 6px 0; border-color: #e2e8f0;">
-                <span style="font-size: 12px; color: #64748b;">📧 {prof['email']}</span><br>
-                <span style="font-size: 12px; color: #64748b;">📞 {prof['phone']}</span><br>
-                <span style="font-size: 12px; color: #15803d;">📱 Paid via: {prof['mpesa_phone']}</span>
-            </div>
-        """, unsafe_with_html=True)
+        st.success(f"**{prof['name']}** (Verified Premium)")
+        st.text(f"📧 Email: {prof['email']}")
+        st.text(f"📞 Phone: {prof['phone']}")
+        st.text(f"📱 M-Pesa: {prof['mpesa_phone']}")
         
         if st.button("Drop Card Into Chat Feed", use_container_width=True):
             st.session_state.chat_history.append({"sender": "You", "type": "contact_card", "content": prof})
@@ -214,6 +201,23 @@ with tab_chat:
             for message in st.session_state.chat_history:
                 if message["sender"] == "You" and message["type"] == "contact_card":
                     card = message["content"]
-                    st.markdown(f"""
-                        <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
-                            <div style="background-color: #ffffff; border: 2px solid #15803d; border-radius: 12px; padding: 12px; max-width: 280px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                    # Render shared contact details using standard widgets instead of raw HTML
+                    with st.chat_message("user"):
+                        st.markdown(f"📇 **Shared Contact Card: {card['name']}**")
+                        st.text(f"Email: {card['email']}")
+                        st.text(f"Phone: {card['phone']}")
+                        st.caption(f"Verification Ref: {card['mpesa_phone']}")
+                elif message["sender"] == "You":
+                    st.chat_message("user").write(message["content"])
+                else:
+                    st.chat_message("assistant").write(message["content"])
+
+        if user_text := st.chat_input("Type a message or insert your customized dating line icebreaker..."):
+            st.session_state.chat_history.append({"sender": "You", "type": "text", "content": user_text})
+            st.rerun()
+
+    with col_bot_panel:
+        st.subheader("🤖 Generative OpenAI Bot")
+        style_choice = st.selectbox("Line Persona Mood:", ["Witty & Playful", "Confident & Direct", "Sweet & Romantic"])
+        if st.button("Generate AI Icebreaker ✨", use_container_width=True, type="primary"):
+            st.session_state.current_suggestion = generate_dating_line_ai(style_choice, st.session_state.user_profile)
