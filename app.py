@@ -11,7 +11,7 @@ OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 
 # FIXED PLATFORM CONFIGURATIONS
 MERCHANT_MPESA_NUMBER = "0711317556"
-PREMIUM_FEE_KES = 20  # Standard small fee charge parameter for service activation
+PREMIUM_FEE_KES = 20
 
 @st.cache_resource
 def get_supabase_client() -> Client:
@@ -128,7 +128,7 @@ with st.sidebar:
                         "phone": phone if phone else "Not provided"
                     }
                     st.session_state.registration_stage = "payment_prompt"
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("Name and Email are mandatory fields.")
 
@@ -151,7 +151,7 @@ with st.sidebar:
         with col_cancel:
             if st.button("⬅️ Back / Cancel"):
                 st.session_state.registration_stage = "form_entry"
-                st.experimental_rerun()
+                st.rerun()
                 
         with col_confirm:
             if st.button("Confirm Payment & Register ✅", type="primary"):
@@ -172,14 +172,14 @@ with st.sidebar:
                             st.session_state.user_profile = payload
                             st.session_state.registration_stage = "form_entry"
                             st.success("Payment verified! Premium registration confirmed.")
-                            st.experimental_rerun()
+                            st.rerun()
                         except Exception as e:
                             st.error(f"Failed to synchronize ledger: {e}")
                     else:
                         st.session_state.user_profile = payload
                         st.session_state.registration_stage = "form_entry"
                         st.info("Offline simulation saved.")
-                        st.experimental_rerun()
+                        st.rerun()
                 else:
                     st.error("You must input your payment phone number to verify transmission.")
 
@@ -199,9 +199,10 @@ with st.sidebar:
         
         if st.button("Drop Card Into Chat Feed", use_container_width=True):
             st.session_state.chat_history.append({"sender": "You", "type": "contact_card", "content": prof})
-            st.experimental_rerun()
+            st.rerun()
 
 # --- 7. MAIN INTERFACE VIEWPORTS ---
+st.markdown("<br>", unsafe_with_html=True)
 tab_chat, tab_admin = st.tabs(["💬 Core Chatroom Feed", "📊 Executive Admin Records & Reporting"])
 
 # ==================== TAB 1: LIVE CHAT SPACE ====================
@@ -216,3 +217,4 @@ with tab_chat:
                     st.markdown(f"""
                         <div style="display: flex; justify-content: flex-end; margin-bottom: 12px;">
                             <div style="background-color: #ffffff; border: 2px solid #15803d; border-radius: 12px; padding: 12px; max-width: 280px; width: 100%; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+                                <h4 style="margin: 0; font-size: 13px; color: #111827;">📇 {card['name']}</h4>
