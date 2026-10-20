@@ -189,35 +189,36 @@ st.markdown("<br>", unsafe_allow_html=True)
 if not st.session_state.user_profile:
     
     if st.session_state.registration_stage == "form_entry":
-        st.markdown(f"""
+        st.markdown("""
         <div style="background-color: #f1f5f9; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; max-width: 800px; margin: 40px auto;">
             <h1 style="color: #0f172a; margin-bottom: 8px; font-size: 28px;">Welcome to soul</h1>
-            <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">An exclusive chatroom feed and Generative AI Dating gateway.</p>
-            <p style="font-weight: 600; color: #3b82f6;">Please complete your Step 1 profile setup in the sidebar to proceed.</p>
+            <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">An exclusive chat room & premium AI dating assistant feed.</p>
+            <p style="color: #475569; font-size: 14px;">Please finalize filling your onboarding profile in the left sidebar configuration panel to continue.</p>
         </div>
         """, unsafe_allow_html=True)
-        
+
     elif st.session_state.registration_stage == "payment_prompt":
-        # Form Entry Completed -> Prompting payment step details on main stage
-        st.markdown(f"""
-        <div style="background-color: #fffdf5; padding: 30px; border-radius: 12px; border: 1px solid #fef08a; max-width: 700px; margin: 20px auto;">
-            <h2 style="color: #854d0e; margin-top: 0;">Complete Premium Verification</h2>
-            <p>To view global online members and activate your chat routing module, an activation fee is required:</p>
-            <ul>
-                <li><strong>Amount:</strong> KES {PREMIUM_FEE_KES}</li>
-                <li><strong>Merchant Destination Number:</strong> {MERCHANT_MPESA_NUMBER}</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        temp_data = st.session_state.temp_registration_data
         
-        with st.container():
-            st.write("### Confirm M-Pesa Billing Information")
-            mpesa_number = st.text_input("Enter Your M-Pesa Number (Used for verification)", placeholder="07XXXXXXXX")
-            mpesa_code = st.text_input("Enter M-Pesa Transaction Code", placeholder="SJKXXXXXXX")
+        st.write("## 💳 Complete Onboarding Premium Activation")
+        st.write(f"Hi **{temp_data['name']}**, your profile setup details are verified. Complete the transaction below to join.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(label="Registration Access Fee", value=f"KES {PREMIUM_FEE_KES}")
+            st.warning(f"Send payment details directly onto Business Till / Number: **{MERCHANT_MPESA_NUMBER}**")
+        
+        with col2:
+            st.write("### Billing Checkout Form")
+            user_mpesa_phone = st.text_input("Enter your Paying M-Pesa Phone Number", placeholder="e.g. 07XXXXXXXX")
+            chosen_location = st.text_input("Region/City Coordinates", placeholder="e.g. Nairobi, Kenya")
             
-            if st.button("Complete Premium Onboarding Verification 🚀", type="primary"):
-                if len(mpesa_number) >= 9 and len(mpesa_code) >= 6:
-                    # Capture registration data construct
-                    profile_payload = {
-                        "name": st.session_state.temp_registration_data["name"],
-                        "email": st.session_state.temp_registration_data["email"],
+            if st.button("Verify Payment & Launch Account 🚀", type="primary", use_container_width=True):
+                if user_mpesa_phone and chosen_location:
+                    with st.spinner("Synchronizing server instances..."):
+                        # FIXED: Dictionary syntax issues and nested lists are fully closed
+                        profile_payload = {
+                            "name": temp_data["name"],
+                            "email": temp_data["email"],
+                            "phone": temp_data["phone"],
+                            "mpesa_phone": user_mpesa_phone,
