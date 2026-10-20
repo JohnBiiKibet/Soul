@@ -3,8 +3,6 @@ import random
 import pandas as pd
 from datetime import datetime
 import pytz
-import base64
-import requests
 from supabase import create_client, Client
 from openai import OpenAI
 
@@ -16,27 +14,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- 2. INITIALIZE DATABASE, AI, & MPESA SECRETS ---
+# --- 2. INITIALIZE DATABASE & AI SECRETS ENVIRONMENT ---
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 
-# M-Pesa Integration Credentials
-MPESA_CONSUMER_KEY = st.secrets.get("MPESA_CONSUMER_KEY", "")
-MPESA_CONSUMER_SECRET = st.secrets.get("MPESA_CONSUMER_SECRET", "")
-MPESA_PASSKEY = st.secrets.get("MPESA_PASSKEY", "")
-
-# TARGET MERCHANT TELEPHONY NODE CONFIGURATION
+# FIXED PLATFORM CONFIGURATIONS
 MERCHANT_MPESA_NUMBER = "0711317556"
 PREMIUM_FEE_KES = 20
-
-# Normalize receiving phone number to Safaricom's internal 254 business format [1]
-TARGET_RECEIVER_PARTY_B = MERCHANT_MPESA_NUMBER.strip().replace(" ", "").replace("+", "")
-if TARGET_RECEIVER_PARTY_B.startswith("0"):
-    TARGET_RECEIVER_PARTY_B = "254" + TARGET_RECEIVER_PARTY_B[1:]
-
-# Fallback string switch back onto testing containers if no customized dashboard shortcode exists [1]
-MPESA_SHORTCODE = st.secrets.get("MPESA_SHORTCODE", "174379") 
 
 @st.cache_resource
 def get_supabase_client() -> Client:
@@ -145,71 +130,9 @@ def compile_registry_report(user_list, total_rev):
 
 live_user_data = fetch_users_from_db()
 
-# --- 7. M-PESA DARAJA STK PUSH API ENGINE ---
-def initiate_mpesa_stk_push(phone_number: str, amount: int) -> bool:
-    """Triggers an instantaneous STK Push pop-up prompt menu directly onto the target device."""
-    # Standardize sender phone string parameters to internal network requirements [1]
-    phone_number = phone_number.strip().replace(" ", "").replace("+", "")
-    if phone_number.startswith("0"):
-        phone_number = "254" + phone_number[1:]
-    elif phone_number.startswith("7") or phone_number.startswith("1"):
-        phone_number = "254" + phone_number
-
-    is_sandbox = "174379" in MPESA_SHORTCODE
-    base_url = "https://safaricom.co.ke" if is_sandbox else "https://safaricom.co.ke"
-
-    try:
-        # Authenticate and Request Authorization Token Access
-        auth_url = f"{base_url}/oauth/v1/generate?grant_type=client_credentials"
-        auth_response = requests.get(auth_url, auth=(MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET), timeout=10)
-        access_token = auth_response.json().get("access_token")
-        
-        if not access_token:
-            st.error("M-Pesa Gateway Authentication Failed. Please verify credentials setup.")
-            return False
-
-        # Create Security Validation Timestamps and Hashes
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        password_str = f"{MPESA_SHORTCODE}{MPESA_PASSKEY}{timestamp}"
-        password_encoded = base64.b64encode(password_str.encode()).decode()
-
-        # FIXED ROUTING PARAMETERS FOR INDIVIDUAL LINE ENDPOINTS [1]
-        transaction_type = "CustomerPayBillOnline" if is_sandbox else "CustomerBuyGoodsOnline"
-        destination_party_b = "174379" if is_sandbox else TARGET_RECEIVER_PARTY_B
-
-        headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
-        stk_payload = {
-            "BusinessShortCode": MPESA_SHORTCODE,
-            "Password": password_encoded,
-            "Timestamp": timestamp,
-            "TransactionType": transaction_type,
-            "Amount": int(amount),
-            "PartyA": phone_number,
-            "PartyB": destination_party_b, # Direct routing configuration maps directly to your line [1]
-            "PhoneNumber": phone_number,
-            "CallBackURL": "https://example.com",
-            "AccountReference": "soul Premium",
-            "TransactionDesc": "Registration fee entry verification"
-        }
-
-        # Push Payload Transmission
-        stk_url = f"{base_url}/mpesa/stkpush/v1/processrequest"
-        response = requests.post(stk_url, json=stk_payload, headers=headers, timeout=10)
-        res_json = response.json()
-        
-        if res_json.get("ResponseCode") == "0":
-            return True
-        else:
-            st.error(f"Safaricom Network Rejection: {res_json.get('ResponseDescription', 'Unknown API Error')}")
-            return False
-
-    except Exception as network_exception:
-        st.error(f"M-Pesa API Outbound Connectivity Interrupted: {network_exception}")
-        return False
-
-# --- 8. SIDEBAR VIEWPORT: ACCOUNT METRICS & ACTIONS ---
+# --- 7. SIDEBAR VIEWPORT: ACCOUNT METRICS & ACTIONS ---
 with st.sidebar:
-    st.title("soul 💬")
+    st.title("soul 💬❤️")
     st.caption("Onboarding Authentication Center")
     
     if st.session_state.registration_stage == "form_entry" and not st.session_state.user_profile:
@@ -233,3 +156,69 @@ with st.sidebar:
                     st.session_state.registration_stage = "payment_prompt"
                     st.rerun()
                 else:
+                    st.error("Name and Email are mandatory fields.")
+
+    elif st.session_state.registration_stage == "payment_prompt" and not st.session_state.user_profile:
+        st.write("### 💳 Verification Pending")
+        st.info("Please fill out the billing checkout form on the main screen page area to unlock access.")
+        if st.button("⬅️ Edit Profile Info"):
+            st.session_state.registration_stage = "form_entry"
+            st.rerun()
+
+    if st.session_state.user_profile:
+        st.write("### 📇 Authenticated Session")
+        prof = st.session_state.user_profile
+        st.success(f"**{prof['name']}** (Online)")
+        st.caption(f"Origin Node: {prof.get('country', 'Kenya 🇰🇪')}")
+        st.text(f"📧 Email: {prof['email']}")
+        st.text(f"📱 M-Pesa: {prof['mpesa_phone']}")
+        
+        if st.button("Drop Card Into Chat Feed", use_container_width=True):
+            st.session_state.chat_history.append({"sender": "You", "type": "contact_card", "content": prof})
+            st.rerun()
+            
+        if st.button("🚪 Sign Out / New Session", use_container_width=True, type="secondary"):
+            st.session_state.user_profile = None
+            st.session_state.registration_stage = "form_entry"
+            st.rerun()
+
+# --- 8. MAIN INTERFACE VIEWPORT MAPS ---
+st.markdown("<br>", unsafe_allow_html=True)
+
+# GATED ROUTING CONDITION: If user has not successfully paid, display the invoice billing screen
+if not st.session_state.user_profile:
+    
+    if st.session_state.registration_stage == "form_entry":
+        st.markdown("""
+        <div style="background-color: #f1f5f9; padding: 40px; border-radius: 16px; border: 1px solid #e2e8f0; text-align: center; max-width: 800px; margin: 40px auto;">
+            <h1 style="color: #0f172a; margin-bottom: 8px; font-size: 28px;">Welcome to soul</h1>
+            <p style="color: #64748b; font-size: 16px; margin-bottom: 24px;">An exclusive chat room & premium AI dating assistant feed.</p>
+            <p style="color: #475569; font-size: 14px;">Please finalize filling your onboarding profile in the left sidebar configuration panel to continue.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    elif st.session_state.registration_stage == "payment_prompt":
+        temp_data = st.session_state.temp_registration_data
+        
+        st.write("## 💳 Complete Onboarding Premium Activation")
+        st.write(f"Hi **{temp_data['name']}**, your profile setup details are verified. Complete the transaction below to join.")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric(label="Registration Access Fee", value=f"KES {PREMIUM_FEE_KES}")
+            st.warning(f"Send payment details directly onto Business Till / Number: **{MERCHANT_MPESA_NUMBER}**")
+        
+        with col2:
+            st.write("### Billing Checkout Form")
+            user_mpesa_phone = st.text_input("Enter your Paying M-Pesa Phone Number", placeholder="e.g. 07XXXXXXXX")
+            chosen_location = st.text_input("Region/City Coordinates", placeholder="e.g. Nairobi, Kenya")
+            
+            if st.button("Verify Payment & Launch Account 🚀", type="primary", use_container_width=True):
+                if user_mpesa_phone and chosen_location:
+                    with st.spinner("Synchronizing server instances..."):
+                        # FIXED: Dictionary syntax issues and nested lists are fully closed
+                        profile_payload = {
+                            "name": temp_data["name"],
+                            "email": temp_data["email"],
+                            "phone": temp_data["phone"],
+                            "mpesa_phone": user_mpesa_phone,}
