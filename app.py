@@ -218,7 +218,7 @@ if not st.session_state.user_profile:
                     with st.spinner("Synchronizing server instances..."):
                         # FIXED: Dictionary syntax issues and nested lists are fully closed
                         profile_payload = {
-                            "name": temp_data["name"],
-                            "email": temp_data["email"],
-                            "phone": temp_data["phone"],
-                            "mpesa_phone": user_mpesa_phone,
+    "name": temp_data["name"],
+    "email": temp_data["email"],
+    "interests": ["Networking", "Chatting"] # <-- Ensure this bracket ']' is closed!
+}
