@@ -141,7 +141,6 @@ live_user_data = fetch_users_from_db()
 # --- 7. M-PESA DARAJA STK PUSH API ENGINE ---
 def initiate_mpesa_stk_push(phone_number: str, amount: int) -> bool:
     """Triggers an instantaneous STK Push pop-up prompt menu directly onto the target device."""
-    # Sanitize Phone Numbers (M-Pesa API standard normalization)
     phone_number = phone_number.strip().replace(" ", "").replace("+", "")
     if phone_number.startswith("0"):
         phone_number = "254" + phone_number[1:]
@@ -177,7 +176,7 @@ def initiate_mpesa_stk_push(phone_number: str, amount: int) -> bool:
             "PartyA": phone_number,
             "PartyB": MPESA_SHORTCODE,
             "PhoneNumber": phone_number,
-            "CallBackURL": "https://example.com",  # Replace with valid URL endpoint if using webhooks
+            "CallBackURL": "https://example.com",
             "AccountReference": "soul Premium",
             "TransactionDesc": "Registration fee entry verification"
         }
@@ -225,7 +224,7 @@ with st.sidebar:
                 else:
                     st.error("Name and Email are mandatory fields.")
 
-    elif st.session_state.registration_stage == "payment_prompt" and not st.session_state.user_profile:
+    elif st.session_state.registration_stage in ["payment_prompt", "awaiting_pin"] and not st.session_state.user_profile:
         st.write("### 💳 Verification Pending")
         st.info("Please fill out the billing checkout form on the main screen page area to unlock access.")
         if st.button("⬅️ Edit Profile Info"):
@@ -235,3 +234,4 @@ with st.sidebar:
     if st.session_state.user_profile:
         st.write("### 📇 Authenticated Session")
         prof = st.session_state.user_profile
+        st.success(f"**{prof['name']}** (Online)")
