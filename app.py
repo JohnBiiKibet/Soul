@@ -24,12 +24,19 @@ OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
 # M-Pesa Integration Credentials
 MPESA_CONSUMER_KEY = st.secrets.get("MPESA_CONSUMER_KEY", "")
 MPESA_CONSUMER_SECRET = st.secrets.get("MPESA_CONSUMER_SECRET", "")
-MPESA_SHORTCODE = st.secrets.get("MPESA_SHORTCODE", "174379")  # Defaults to sandbox
 MPESA_PASSKEY = st.secrets.get("MPESA_PASSKEY", "")
 
-# FIXED PLATFORM CONFIGURATIONS
+# TARGET MERCHANT TELEPHONY NODE CONFIGURATION
 MERCHANT_MPESA_NUMBER = "0711317556"
 PREMIUM_FEE_KES = 20
+
+# Normalize receiving phone number to Safaricom's internal 254 business format [1]
+TARGET_RECEIVER_PARTY_B = MERCHANT_MPESA_NUMBER.strip().replace(" ", "").replace("+", "")
+if TARGET_RECEIVER_PARTY_B.startswith("0"):
+    TARGET_RECEIVER_PARTY_B = "254" + TARGET_RECEIVER_PARTY_B[1:]
+
+# Fallback string switch back onto testing containers if no customized dashboard shortcode exists [1]
+MPESA_SHORTCODE = st.secrets.get("MPESA_SHORTCODE", "174379") 
 
 @st.cache_resource
 def get_supabase_client() -> Client:
@@ -141,6 +148,7 @@ live_user_data = fetch_users_from_db()
 # --- 7. M-PESA DARAJA STK PUSH API ENGINE ---
 def initiate_mpesa_stk_push(phone_number: str, amount: int) -> bool:
     """Triggers an instantaneous STK Push pop-up prompt menu directly onto the target device."""
+    # Standardize sender phone string parameters to internal network requirements [1]
     phone_number = phone_number.strip().replace(" ", "").replace("+", "")
     if phone_number.startswith("0"):
         phone_number = "254" + phone_number[1:]
@@ -165,16 +173,19 @@ def initiate_mpesa_stk_push(phone_number: str, amount: int) -> bool:
         password_str = f"{MPESA_SHORTCODE}{MPESA_PASSKEY}{timestamp}"
         password_encoded = base64.b64encode(password_str.encode()).decode()
 
-        # Construct Request Headers and Content Structure Payload
+        # FIXED ROUTING PARAMETERS FOR INDIVIDUAL LINE ENDPOINTS [1]
+        transaction_type = "CustomerPayBillOnline" if is_sandbox else "CustomerBuyGoodsOnline"
+        destination_party_b = "174379" if is_sandbox else TARGET_RECEIVER_PARTY_B
+
         headers = {"Authorization": f"Bearer {access_token}", "Content-Type": "application/json"}
         stk_payload = {
             "BusinessShortCode": MPESA_SHORTCODE,
             "Password": password_encoded,
             "Timestamp": timestamp,
-            "TransactionType": "CustomerPayBillOnline",
+            "TransactionType": transaction_type,
             "Amount": int(amount),
             "PartyA": phone_number,
-            "PartyB": MPESA_SHORTCODE,
+            "PartyB": destination_party_b, # Direct routing configuration maps directly to your line [1]
             "PhoneNumber": phone_number,
             "CallBackURL": "https://example.com",
             "AccountReference": "soul Premium",
@@ -198,7 +209,7 @@ def initiate_mpesa_stk_push(phone_number: str, amount: int) -> bool:
 
 # --- 8. SIDEBAR VIEWPORT: ACCOUNT METRICS & ACTIONS ---
 with st.sidebar:
-    st.title("soul 💬❤️")
+    st.title("soul 💬")
     st.caption("Onboarding Authentication Center")
     
     if st.session_state.registration_stage == "form_entry" and not st.session_state.user_profile:
@@ -222,16 +233,3 @@ with st.sidebar:
                     st.session_state.registration_stage = "payment_prompt"
                     st.rerun()
                 else:
-                    st.error("Name and Email are mandatory fields.")
-
-    elif st.session_state.registration_stage in ["payment_prompt", "awaiting_pin"] and not st.session_state.user_profile:
-        st.write("### 💳 Verification Pending")
-        st.info("Please fill out the billing checkout form on the main screen page area to unlock access.")
-        if st.button("⬅️ Edit Profile Info"):
-            st.session_state.registration_stage = "form_entry"
-            st.rerun()
-
-    if st.session_state.user_profile:
-        st.write("### 📇 Authenticated Session")
-        prof = st.session_state.user_profile
-        st.success(f"**{prof['name']}** (Online)")
